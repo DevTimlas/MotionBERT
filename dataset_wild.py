@@ -76,7 +76,7 @@ def read_input(json_path, vid_size, scale_range, focus):
     kpts_all = np.array(kpts_all)
     print(kpts_all.shape)
     kpts_all = halpe2h36m(kpts_all)
-    print(kpts_all)
+    # print(kpts_all)
     if vid_size:
         w, h = vid_size
         scale = min(w,h) / 2.0
