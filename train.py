@@ -53,7 +53,7 @@ def save_checkpoint(chk_path, epoch, lr, optimizer, model_pos, min_loss):
         'min_loss' : min_loss
     }, chk_path)
     
-def evaluate(args, model_pos, test_loader, datareader):
+def evaluate1(args, model_pos, test_loader, datareader):
     print('INFO: Testing')
     results_all = []
     model_pos.eval()            
@@ -151,6 +151,67 @@ def evaluate(args, model_pos, test_loader, datareader):
     print('Protocol #2 Error (P-MPJPE):', e2, 'mm')
     print('----------')
     return e1, e2, results_all
+
+def evaluate(args, model_pos, test_loader, datareader):
+    print('INFO: Testing')
+    results_all = []
+    model_pos.eval()
+    with torch.no_grad():
+        for batch_input, batch_gt in tqdm(test_loader):
+            N, T = batch_gt.shape[:2]
+            if torch.cuda.is_available():
+                batch_input = batch_input.cuda()
+            if args.no_conf:
+                batch_input = batch_input[:, :, :, :2]
+            if args.flip:
+                batch_input_flip = flip_data(batch_input)
+                predicted_3d_pos_1 = model_pos(batch_input)
+                predicted_3d_pos_flip = model_pos(batch_input_flip)
+                predicted_3d_pos_2 = flip_data(predicted_3d_pos_flip)  # Flip back
+                predicted_3d_pos = (predicted_3d_pos_1 + predicted_3d_pos_2) / 2
+            else:
+                predicted_3d_pos = model_pos(batch_input)
+            if args.rootrel:
+                predicted_3d_pos[:, :, 0, :] = 0  # [N,T,17,3]
+            else:
+                batch_gt[:, 0, 0, 2] = 0
+
+            if args.gt_2d:
+                predicted_3d_pos[..., :2] = batch_input[..., :2]
+            results_all.append(predicted_3d_pos.cpu().numpy())
+    results_all = np.concatenate(results_all)
+    results_all = datareader.denormalize(results_all)
+
+    _, split_id_test = datareader.get_split_id()
+    gts = np.array(datareader.dt_dataset['test']['joints_2.5d_image'])
+    sources = np.array(datareader.dt_dataset['test']['source'])
+    
+    num_test_frames = len(gts)
+    oc = np.ones(num_test_frames)
+    
+    e1_all = np.zeros(num_test_frames)
+    e2_all = np.zeros(num_test_frames)
+    
+    for idx in range(num_test_frames):
+        gt = gts[idx]
+        pred = results_all[idx]
+
+        # Root-relative Errors
+        pred = pred - pred[:, 0:1, :]
+        gt = gt - gt[:, 0:1, :]
+        err1 = mpjpe(pred, gt)
+        err2 = p_mpjpe(pred, gt)
+        e1_all[idx] = err1
+        e2_all[idx] = err2
+
+    e1 = np.mean(e1_all)
+    e2 = np.mean(e2_all)
+    
+    print('Protocol #1 Error (MPJPE):', e1, 'mm')
+    print('Protocol #2 Error (P-MPJPE):', e2, 'mm')
+    print('----------')
+    return e1, e2, results_all
+
         
 def train_epoch(args, model_pos, train_loader, losses, optimizer, has_3d, has_gt):
     model_pos.train()
