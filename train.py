@@ -53,7 +53,7 @@ def save_checkpoint(chk_path, epoch, lr, optimizer, model_pos, min_loss):
         'min_loss' : min_loss
     }, chk_path)
     
-def evaluate1(args, model_pos, test_loader, datareader):
+def evaluate(args, model_pos, test_loader, datareader):
     print('INFO: Testing')
     results_all = []
     model_pos.eval()            
@@ -152,7 +152,7 @@ def evaluate1(args, model_pos, test_loader, datareader):
     print('----------')
     return e1, e2, results_all
 
-def evaluate(args, model_pos, test_loader, datareader):
+def evaluate1(args, model_pos, test_loader, datareader):
     print('INFO: Testing')
     results_all = []
     model_pos.eval()
